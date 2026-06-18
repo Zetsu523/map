@@ -3886,13 +3886,13 @@ export const countriesInfo = {
       "\u0420\u043e\u0441\u0441\u0438\u0439\u0441\u043a\u0430\u044f \u0424\u0435\u0434\u0435\u0440\u0430\u0446\u0438\u044f",
       "\u0420\u043e\u0441\u0441\u0438\u044f"
     ],
-    "continent": "Europe",
+    "continent": "Asie",
     "capital": "Moscow",
     "population": "Environ 144\u202f478\u202f050 habitants",
     "area": "17\u202f098\u202f242 km\u00b2",
     "lat": 60,
     "lng": 100,
-    "description": "Russie est un pays situ\u00e9 en Europe. Cette fiche locale est enregistr\u00e9e pour la V1 et pourra \u00eatre enrichie ensuite."
+    "description": "La Russie est un vaste pays principalement situ\u00e9 en Asie dans cette classification simplifi\u00e9e de la V1."
   },
   "RWA": {
     "name": "Rwanda",
