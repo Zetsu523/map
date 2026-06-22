@@ -61,9 +61,9 @@ Dans GitHub, activer `Settings > Pages > Build and deployment > Source > Deploy 
 
 ## Données locales
 
-- `src/data/countries.geojson` contient les géométries simplifiées des pays.
+- `src/data/countries.geojson` contient les géométries Natural Earth 1:50m des pays pour des frontières plus nettes.
 - `src/data/countries-info.js` contient une base locale de 252 entrées issue de `mledoze/countries` et enrichie avec les populations de `samayo/country-json`.
-- Les cas GeoJSON Northern Cyprus et Somaliland sont ajoutés manuellement pour couvrir toutes les entités cliquables.
+- Les cas GeoJSON Northern Cyprus et Somaliland sont présents dans la source Natural Earth 1:50m pour couvrir ces entités cliquables.
 - France, Italie, Espagne, Allemagne, États-Unis, Japon, Brésil et Australie disposent de descriptions enrichies en priorité.
 - `public/data/cities/` contient les villes locales par pays, générées depuis GeoNames `cities1000` : lieux peuplés de plus de 1 000 habitants, sous licence Creative Commons Attribution. Attribution : https://www.geonames.org/
 - `src/data/cities.js` contient le chargeur utilisé par le globe pour récupérer uniquement les villes du pays zoomé.

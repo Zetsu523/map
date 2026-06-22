@@ -492,6 +492,11 @@ export default function GlobeViewer({
     }
 
     const controls = globeRef.current.controls();
+    const renderer = globeRef.current.renderer?.();
+
+    if (renderer?.setPixelRatio) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    }
 
     if (controls) {
       controls.enableDamping = true;
@@ -866,7 +871,7 @@ export default function GlobeViewer({
           ref={globeRef}
           width={size.width}
           height={size.height}
-          rendererConfig={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
+          rendererConfig={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           animateIn={false}
           backgroundColor="rgba(0,0,0,0)"
           globeImageUrl={earthTexture}
@@ -875,6 +880,7 @@ export default function GlobeViewer({
           atmosphereAltitude={0.08}
           polygonsData={countries}
           polygonCapColor={getPolygonColor}
+          polygonCapCurvatureResolution={1}
           polygonSideColor={() => "rgba(0, 0, 0, 0)"}
           polygonStrokeColor={(feature) => {
             if (countryMatchesSelection(feature, selectedCountry)) {

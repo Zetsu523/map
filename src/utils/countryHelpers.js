@@ -240,6 +240,21 @@ function pointIsInPolygon(lng, lat, polygon) {
   return !holes.some((hole) => pointIsInRing(lng, lat, hole));
 }
 
+function coordinatesAreInFeatureBbox(lng, lat, feature) {
+  const [minLng, minLat, maxLng, maxLat] = feature?.bbox ?? [];
+
+  if (
+    !Number.isFinite(minLng) ||
+    !Number.isFinite(minLat) ||
+    !Number.isFinite(maxLng) ||
+    !Number.isFinite(maxLat)
+  ) {
+    return true;
+  }
+
+  return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+}
+
 export function findCountryAtCoordinates({ lat, lng } = {}, countries = []) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null;
@@ -247,6 +262,10 @@ export function findCountryAtCoordinates({ lat, lng } = {}, countries = []) {
 
   return (
     countries.find((feature) => {
+      if (!coordinatesAreInFeatureBbox(lng, lat, feature)) {
+        return false;
+      }
+
       const geometry = feature?.geometry;
 
       if (geometry?.type === "Polygon") {
