@@ -2363,12 +2363,13 @@ export const countriesInfo = {
       "Poblacht na h\u00c9ireann"
     ],
     "continent": "Europe",
+    "euStatus": "Membre de l’Union européenne",
     "capital": "Dublin",
     "population": "Environ 4\u202f867\u202f309 habitants",
     "area": "70\u202f273 km\u00b2",
     "lat": 53,
     "lng": -8,
-    "description": "Irlande est un pays situ\u00e9 en Europe. Cette fiche locale est enregistr\u00e9e pour la V1 et pourra \u00eatre enrichie ensuite."
+    "description": "Irlande est un pays situ\u00e9 en Europe et membre de l’Union européenne. Cette fiche locale est enregistr\u00e9e pour la V1 et pourra \u00eatre enrichie ensuite."
   },
   "ISL": {
     "name": "Islande",
@@ -3867,12 +3868,13 @@ export const countriesInfo = {
       "Great Britain"
     ],
     "continent": "Europe",
+    "euStatus": "Non membre de l’Union européenne depuis le Brexit",
     "capital": "London",
     "population": "Environ 66\u202f460\u202f344 habitants",
     "area": "242\u202f900 km\u00b2",
     "lat": 54,
     "lng": -2,
-    "description": "Royaume-Uni est un pays situ\u00e9 en Europe. Cette fiche locale est enregistr\u00e9e pour la V1 et pourra \u00eatre enrichie ensuite."
+    "description": "Royaume-Uni est un pays situ\u00e9 en Europe, mais il ne fait plus partie de l’Union européenne depuis le Brexit. Cette fiche locale est enregistr\u00e9e pour la V1 et pourra \u00eatre enrichie ensuite."
   },
   "RUS": {
     "name": "Russie",

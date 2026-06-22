@@ -27,6 +27,15 @@ export default function CountryPanel({ country, onClose }) {
       value: formatValue(info?.continent),
       icon: <MapPin size={18} aria-hidden="true" />
     },
+    ...(info?.euStatus
+      ? [
+          {
+            label: "Union européenne",
+            value: info.euStatus,
+            icon: <Landmark size={18} aria-hidden="true" />
+          }
+        ]
+      : []),
     {
       label: "Capitale",
       value: formatValue(info?.capital),

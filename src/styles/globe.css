@@ -7,8 +7,8 @@
   isolation: isolate;
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(4, 12, 24, 0.58), rgba(2, 4, 10, 0.98)),
-    #02040a;
+    radial-gradient(circle at 50% 42%, rgba(14, 35, 67, 0.28), rgba(2, 4, 10, 0.24) 42%, rgba(0, 0, 0, 0.9) 100%),
+    #00030a;
 }
 
 .globe-canvas {
@@ -18,6 +18,234 @@
 
 .globe-canvas canvas {
   display: block;
+}
+
+.globe-controls {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.city-toggle {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 8px;
+  color: #dbeafe;
+  background: rgba(2, 6, 23, 0.72);
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.city-toggle:hover,
+.city-toggle:focus-visible {
+  border-color: rgba(56, 189, 248, 0.72);
+  color: #ffffff;
+  outline: none;
+}
+
+.city-toggle.is-active {
+  border-color: rgba(250, 204, 21, 0.72);
+  color: #fef3c7;
+  background: rgba(67, 52, 14, 0.68);
+}
+
+.city-map-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  color: #dbeafe;
+  background: transparent;
+  cursor: pointer;
+  font: 700 11px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 0;
+  text-shadow:
+    0 1px 2px rgba(2, 6, 23, 0.95),
+    1px 0 1px rgba(2, 6, 23, 0.9),
+    -1px 0 1px rgba(2, 6, 23, 0.9);
+  white-space: nowrap;
+}
+
+.city-map-label:hover,
+.city-map-label:focus-visible {
+  color: #ffffff;
+  outline: none;
+}
+
+.city-map-label.is-major {
+  color: #fef3c7;
+  font-size: 12px;
+}
+
+.city-map-label.is-medium {
+  color: #e0f2fe;
+}
+
+.city-map-label.is-small {
+  color: #bfdbfe;
+  font-size: 10px;
+}
+
+.city-map-label.is-selected {
+  color: #facc15;
+}
+
+.city-map-label-dot {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.82);
+}
+
+.city-map-label-text {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.city-card {
+  position: absolute;
+  top: 70px;
+  left: 16px;
+  z-index: 3;
+  width: min(300px, calc(100% - 32px));
+  padding: 14px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  color: #e5edff;
+  background: rgba(3, 7, 18, 0.82);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(12px);
+}
+
+.city-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.city-card-heading p {
+  margin: 0 0 4px;
+  color: #86efac;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.city-card-heading h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.city-card-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.78);
+  cursor: pointer;
+}
+
+.city-card-close:hover,
+.city-card-close:focus-visible {
+  border-color: rgba(56, 189, 248, 0.65);
+  color: #ffffff;
+  outline: none;
+}
+
+.city-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.city-facts div {
+  min-width: 0;
+}
+
+.city-facts dt {
+  margin: 0 0 3px;
+  color: #93c5fd;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.city-facts dd {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 0.92rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.city-weather {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.city-weather h3 {
+  margin: 0 0 9px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.city-weather p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.weather-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 0;
+}
+
+.weather-facts div {
+  min-width: 0;
+}
+
+.weather-facts dt {
+  margin: 0 0 3px;
+  color: #7dd3fc;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.weather-facts dd {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .globe-hint {
@@ -86,6 +314,32 @@
 }
 
 @media (max-width: 620px) {
+  .globe-controls {
+    top: 10px;
+    left: 10px;
+  }
+
+  .city-toggle {
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 0.86rem;
+  }
+
+  .city-card {
+    top: 58px;
+    left: 10px;
+    width: min(288px, calc(100% - 20px));
+    padding: 12px;
+  }
+
+  .city-card-heading h2 {
+    font-size: 1.18rem;
+  }
+
+  .city-facts {
+    gap: 8px;
+  }
+
   .globe-hint {
     left: 10px;
     right: 10px;
