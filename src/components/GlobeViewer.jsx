@@ -16,6 +16,7 @@ import { getCityWeather } from "../services/weatherService.js";
 const MIN_GLOBE_SIZE = 320;
 const DEFAULT_GLOBE_ALTITUDE = 2.5;
 const CITY_ZOOM_THRESHOLD = 1.18;
+const HOVER_UPDATE_INTERVAL_MS = 90;
 const CITY_LAYER_PROFILES = [
   {
     maxAltitude: 0.18,
@@ -70,6 +71,10 @@ const SUN_POSITION = new THREE.Vector3(0.48, 0.25, -1).normalize().multiplyScala
 const STAR_COUNT = 1100;
 const STAR_FIELD_RADIUS = 980;
 const STAR_FIELD_DEPTH = 520;
+
+function getFeatureKey(feature) {
+  return feature?.id ?? getCountryName(feature);
+}
 
 function normalizeDegrees(value) {
   return ((value % 360) + 360) % 360;
@@ -350,6 +355,31 @@ function pickVisibleCities(cities, profile) {
   return pickedCities;
 }
 
+function collectBoundaryPathsFromGeometry(feature) {
+  const geometry = feature?.geometry;
+
+  if (!geometry) {
+    return [];
+  }
+
+  const polygons =
+    geometry.type === "Polygon"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiPolygon"
+        ? geometry.coordinates
+        : [];
+
+  return polygons.flatMap((polygon, polygonIndex) =>
+    polygon
+      .filter((ring) => Array.isArray(ring) && ring.length > 2)
+      .map((ring, ringIndex) => ({
+        id: `${getFeatureKey(feature)}-${polygonIndex}-${ringIndex}`,
+        countryName: getCountryName(feature),
+        points: ring.map(([lng, lat]) => [lat, lng])
+      }))
+  );
+}
+
 function getCityLabelColor(city, selectedCity) {
   if (selectedCity?.id === city.id) {
     return "#facc15";
@@ -426,6 +456,10 @@ export default function GlobeViewer({
   const moonSystemRef = useRef(null);
   const countryClickGuardRef = useRef(false);
   const weatherCacheRef = useRef(new Map());
+  const hoverUpdateRef = useRef({ name: null, time: 0 });
+  const hoverRaycasterRef = useRef(new THREE.Raycaster());
+  const hoverPointerRef = useRef(new THREE.Vector2());
+  const hoverPointRef = useRef(new THREE.Vector3());
   const viewUpdateRef = useRef({
     lat: 0,
     lng: 0,
@@ -434,6 +468,7 @@ export default function GlobeViewer({
     time: 0
   });
   const [isReady, setIsReady] = useState(false);
+  const [hoveredCountry, setHoveredCountry] = useState(null);
   const [citiesEnabled, setCitiesEnabled] = useState(false);
   const [selectedCity, setSelectedCity] = useState(null);
   const [globeAltitude, setGlobeAltitude] = useState(DEFAULT_GLOBE_ALTITUDE);
@@ -455,6 +490,32 @@ export default function GlobeViewer({
   );
   const cityLayerProfile = useMemo(() => getCityLayerProfile(globeAltitude), [globeAltitude]);
   const citiesAreVisible = citiesEnabled && Boolean(focusedCountryCode) && Boolean(cityLayerProfile);
+  const countryBoundaryPaths = useMemo(
+    () => countries.flatMap((feature) => collectBoundaryPathsFromGeometry(feature)),
+    [countries]
+  );
+  const activeCountryPolygons = useMemo(() => {
+    const activePolygons = [];
+    const selectedFeature = selectedCountry?.feature;
+    const selectedKey = getFeatureKey(selectedFeature);
+    const hoveredKey = getFeatureKey(hoveredCountry);
+
+    if (selectedFeature) {
+      activePolygons.push({
+        ...selectedFeature,
+        interactionState: "selected"
+      });
+    }
+
+    if (hoveredCountry && hoveredKey !== selectedKey) {
+      activePolygons.push({
+        ...hoveredCountry,
+        interactionState: "hovered"
+      });
+    }
+
+    return activePolygons;
+  }, [hoveredCountry, selectedCountry]);
 
   const waterLabelData = useMemo(
     () =>
@@ -508,6 +569,92 @@ export default function GlobeViewer({
       controls.autoRotate = false;
     }
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !globeRef.current) {
+      return undefined;
+    }
+
+    const camera = globeRef.current.camera?.();
+    const renderer = globeRef.current.renderer?.();
+    const canvas = renderer?.domElement;
+    const surfacePoint = globeRef.current.getCoords?.(0, 0, 0);
+
+    if (!camera || !canvas || !surfacePoint) {
+      return undefined;
+    }
+
+    const globeRadius = new THREE.Vector3(
+      surfacePoint.x,
+      surfacePoint.y,
+      surfacePoint.z
+    ).length();
+    const globeSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), globeRadius);
+
+    function setHoveredFeature(feature) {
+      const nextName = feature ? getCountryName(feature) : null;
+
+      if (hoverUpdateRef.current.name === nextName) {
+        return;
+      }
+
+      hoverUpdateRef.current.name = nextName;
+      setHoveredCountry(feature);
+      canvas.style.cursor = feature ? "pointer" : "grab";
+    }
+
+    function handlePointerMove(event) {
+      const now = performance.now();
+
+      if (now - hoverUpdateRef.current.time < HOVER_UPDATE_INTERVAL_MS) {
+        return;
+      }
+
+      hoverUpdateRef.current.time = now;
+
+      const rect = canvas.getBoundingClientRect();
+
+      if (!rect.width || !rect.height) {
+        setHoveredFeature(null);
+        return;
+      }
+
+      hoverPointerRef.current.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      hoverRaycasterRef.current.setFromCamera(hoverPointerRef.current, camera);
+
+      const hitPoint = hoverRaycasterRef.current.ray.intersectSphere(
+        globeSphere,
+        hoverPointRef.current
+      );
+
+      if (!hitPoint) {
+        setHoveredFeature(null);
+        return;
+      }
+
+      const coords = globeRef.current.toGeoCoords?.(hoverPointRef.current);
+      const countryAtPointer = findCountryAtCoordinates(coords, countries);
+
+      setHoveredFeature(countryAtPointer);
+    }
+
+    function handlePointerLeave() {
+      hoverUpdateRef.current.time = 0;
+      setHoveredFeature(null);
+    }
+
+    canvas.addEventListener("pointermove", handlePointerMove, { passive: true });
+    canvas.addEventListener("pointerleave", handlePointerLeave);
+
+    return () => {
+      canvas.removeEventListener("pointermove", handlePointerMove);
+      canvas.removeEventListener("pointerleave", handlePointerLeave);
+      canvas.style.cursor = "";
+    };
+  }, [countries, isReady]);
 
   useEffect(() => {
     if (
@@ -752,11 +899,18 @@ export default function GlobeViewer({
       return "rgba(255, 255, 255, 0)";
     }
 
-    if (countryMatchesSelection(feature, selectedCountry)) {
+    if (
+      feature.interactionState === "selected" ||
+      countryMatchesSelection(feature, selectedCountry)
+    ) {
       return "rgba(34, 197, 94, 0.54)";
     }
 
-    return "rgba(255, 255, 255, 0.015)";
+    if (feature.interactionState === "hovered") {
+      return "rgba(125, 211, 252, 0.22)";
+    }
+
+    return "rgba(255, 255, 255, 0)";
   }
 
   function selectFeature(feature) {
@@ -878,23 +1032,37 @@ export default function GlobeViewer({
           showAtmosphere
           atmosphereColor="#38bdf8"
           atmosphereAltitude={0.08}
-          polygonsData={countries}
+          lineHoverPrecision={0}
+          pathsData={countryBoundaryPaths}
+          pathPoints="points"
+          pathPointAlt={0.003}
+          pathResolution={5}
+          pathColor={() => "rgba(226, 232, 240, 0.4)"}
+          pathStroke={null}
+          pathTransitionDuration={0}
+          polygonsData={activeCountryPolygons}
           polygonCapColor={getPolygonColor}
           polygonCapCurvatureResolution={1}
           polygonSideColor={() => "rgba(0, 0, 0, 0)"}
           polygonStrokeColor={(feature) => {
-            if (countryMatchesSelection(feature, selectedCountry)) {
+            if (
+              feature.interactionState === "selected" ||
+              countryMatchesSelection(feature, selectedCountry)
+            ) {
               return "rgba(187, 247, 208, 0.95)";
             }
 
-            return "rgba(255, 255, 255, 0.14)";
+            return "rgba(125, 211, 252, 0.85)";
           }}
           polygonAltitude={(feature) => {
-            if (countryMatchesSelection(feature, selectedCountry)) {
+            if (
+              feature.interactionState === "selected" ||
+              countryMatchesSelection(feature, selectedCountry)
+            ) {
               return 0.018;
             }
 
-            return 0;
+            return 0.01;
           }}
           polygonLabel={(feature) =>
             isCountryFeature(feature)

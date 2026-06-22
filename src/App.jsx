@@ -25,6 +25,7 @@ function buildCountrySelection({ feature, name, info }) {
   return {
     name: displayName,
     featureName,
+    feature,
     info: countryInfo,
     lat: countryInfo?.lat,
     lng: countryInfo?.lng
