@@ -17,6 +17,8 @@ const MIN_GLOBE_SIZE = 320;
 const DEFAULT_GLOBE_ALTITUDE = 2.5;
 const CITY_ZOOM_THRESHOLD = 1.18;
 const HOVER_UPDATE_INTERVAL_MS = 90;
+const BOUNDARY_ALTITUDE = 0.004;
+const BOUNDARY_SIMPLIFICATION_TOLERANCE = 0.06;
 const CITY_LAYER_PROFILES = [
   {
     maxAltitude: 0.18,
@@ -355,7 +357,126 @@ function pickVisibleCities(cities, profile) {
   return pickedCities;
 }
 
-function collectBoundaryPathsFromGeometry(feature) {
+function getSquaredPointDistance(firstPoint, secondPoint) {
+  const lngDiff = firstPoint[0] - secondPoint[0];
+  const latDiff = firstPoint[1] - secondPoint[1];
+
+  return lngDiff * lngDiff + latDiff * latDiff;
+}
+
+function getSquaredSegmentDistance(point, start, end) {
+  let projectedLng = start[0];
+  let projectedLat = start[1];
+  const lngDiff = end[0] - projectedLng;
+  const latDiff = end[1] - projectedLat;
+
+  if (lngDiff !== 0 || latDiff !== 0) {
+    const projection =
+      ((point[0] - projectedLng) * lngDiff + (point[1] - projectedLat) * latDiff) /
+      (lngDiff * lngDiff + latDiff * latDiff);
+
+    if (projection > 1) {
+      projectedLng = end[0];
+      projectedLat = end[1];
+    } else if (projection > 0) {
+      projectedLng += lngDiff * projection;
+      projectedLat += latDiff * projection;
+    }
+  }
+
+  const finalLngDiff = point[0] - projectedLng;
+  const finalLatDiff = point[1] - projectedLat;
+
+  return finalLngDiff * finalLngDiff + finalLatDiff * finalLatDiff;
+}
+
+function simplifyRadialDistance(points, tolerance) {
+  if (points.length <= 2) {
+    return points;
+  }
+
+  const squaredTolerance = tolerance * tolerance;
+  const simplifiedPoints = [points[0]];
+  let previousPoint = points[0];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index];
+
+    if (getSquaredPointDistance(point, previousPoint) > squaredTolerance) {
+      simplifiedPoints.push(point);
+      previousPoint = point;
+    }
+  }
+
+  const lastPoint = points[points.length - 1];
+
+  if (previousPoint !== lastPoint) {
+    simplifiedPoints.push(lastPoint);
+  }
+
+  return simplifiedPoints;
+}
+
+function simplifyDouglasPeucker(points, tolerance) {
+  if (points.length <= 2) {
+    return points;
+  }
+
+  const squaredTolerance = tolerance * tolerance;
+  const markers = new Uint8Array(points.length);
+  const stack = [[0, points.length - 1]];
+  markers[0] = 1;
+  markers[points.length - 1] = 1;
+
+  while (stack.length) {
+    const [firstIndex, lastIndex] = stack.pop();
+    let maxDistance = 0;
+    let splitIndex = 0;
+
+    for (let index = firstIndex + 1; index < lastIndex; index += 1) {
+      const distance = getSquaredSegmentDistance(
+        points[index],
+        points[firstIndex],
+        points[lastIndex]
+      );
+
+      if (distance > maxDistance) {
+        splitIndex = index;
+        maxDistance = distance;
+      }
+    }
+
+    if (maxDistance > squaredTolerance) {
+      markers[splitIndex] = 1;
+      stack.push([firstIndex, splitIndex], [splitIndex, lastIndex]);
+    }
+  }
+
+  return points.filter((_, index) => markers[index]);
+}
+
+function simplifyBoundaryRing(ring) {
+  if (!Array.isArray(ring) || ring.length <= 8) {
+    return ring;
+  }
+
+  const firstPoint = ring[0];
+  const lastPoint = ring[ring.length - 1];
+  const isClosed = firstPoint[0] === lastPoint[0] && firstPoint[1] === lastPoint[1];
+  const coreRing = isClosed ? ring.slice(0, -1) : ring;
+  const simplifiedRing = simplifyDouglasPeucker(
+    simplifyRadialDistance(coreRing, BOUNDARY_SIMPLIFICATION_TOLERANCE),
+    BOUNDARY_SIMPLIFICATION_TOLERANCE
+  );
+
+  if (isClosed) {
+    simplifiedRing.push(simplifiedRing[0]);
+  }
+
+  return simplifiedRing.length >= 4 ? simplifiedRing : ring;
+}
+
+function collectBoundaryRingsFromGeometry(feature) {
   const geometry = feature?.geometry;
 
   if (!geometry) {
@@ -375,9 +496,49 @@ function collectBoundaryPathsFromGeometry(feature) {
       .map((ring, ringIndex) => ({
         id: `${getFeatureKey(feature)}-${polygonIndex}-${ringIndex}`,
         countryName: getCountryName(feature),
-        points: ring.map(([lng, lat]) => [lat, lng])
+        points: simplifyBoundaryRing(ring)
       }))
   );
+}
+
+const simplifiedFeatureCache = new WeakMap();
+
+function getSimplifiedGeometry(geometry) {
+  if (geometry?.type === "Polygon") {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((ring) => simplifyBoundaryRing(ring))
+    };
+  }
+
+  if (geometry?.type === "MultiPolygon") {
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.map((polygon) =>
+        polygon.map((ring) => simplifyBoundaryRing(ring))
+      )
+    };
+  }
+
+  return geometry;
+}
+
+function getRenderFeature(feature, interactionState) {
+  if (!feature) {
+    return null;
+  }
+
+  if (!simplifiedFeatureCache.has(feature)) {
+    simplifiedFeatureCache.set(feature, {
+      ...feature,
+      geometry: getSimplifiedGeometry(feature.geometry)
+    });
+  }
+
+  return {
+    ...simplifiedFeatureCache.get(feature),
+    interactionState
+  };
 }
 
 function getCityLabelColor(city, selectedCity) {
@@ -454,6 +615,7 @@ export default function GlobeViewer({
   const globeRef = useRef(null);
   const containerRef = useRef(null);
   const moonSystemRef = useRef(null);
+  const boundaryLinesRef = useRef(null);
   const countryClickGuardRef = useRef(false);
   const weatherCacheRef = useRef(new Map());
   const hoverUpdateRef = useRef({ name: null, time: 0 });
@@ -490,8 +652,8 @@ export default function GlobeViewer({
   );
   const cityLayerProfile = useMemo(() => getCityLayerProfile(globeAltitude), [globeAltitude]);
   const citiesAreVisible = citiesEnabled && Boolean(focusedCountryCode) && Boolean(cityLayerProfile);
-  const countryBoundaryPaths = useMemo(
-    () => countries.flatMap((feature) => collectBoundaryPathsFromGeometry(feature)),
+  const countryBoundaryRings = useMemo(
+    () => countries.flatMap((feature) => collectBoundaryRingsFromGeometry(feature)),
     [countries]
   );
   const activeCountryPolygons = useMemo(() => {
@@ -501,20 +663,14 @@ export default function GlobeViewer({
     const hoveredKey = getFeatureKey(hoveredCountry);
 
     if (selectedFeature) {
-      activePolygons.push({
-        ...selectedFeature,
-        interactionState: "selected"
-      });
+      activePolygons.push(getRenderFeature(selectedFeature, "selected"));
     }
 
     if (hoveredCountry && hoveredKey !== selectedKey) {
-      activePolygons.push({
-        ...hoveredCountry,
-        interactionState: "hovered"
-      });
+      activePolygons.push(getRenderFeature(hoveredCountry, "hovered"));
     }
 
-    return activePolygons;
+    return activePolygons.filter(Boolean);
   }, [hoveredCountry, selectedCountry]);
 
   const waterLabelData = useMemo(
@@ -569,6 +725,69 @@ export default function GlobeViewer({
       controls.autoRotate = false;
     }
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !globeRef.current || !countryBoundaryRings.length) {
+      return undefined;
+    }
+
+    const scene = globeRef.current.scene?.();
+
+    if (!scene) {
+      return undefined;
+    }
+
+    const positions = [];
+
+    countryBoundaryRings.forEach((ring) => {
+      const points = ring.points;
+
+      for (let index = 1; index < points.length; index += 1) {
+        const [previousLng, previousLat] = points[index - 1];
+        const [currentLng, currentLat] = points[index];
+        const previousPoint = globeRef.current.getCoords(
+          previousLat,
+          previousLng,
+          BOUNDARY_ALTITUDE
+        );
+        const currentPoint = globeRef.current.getCoords(currentLat, currentLng, BOUNDARY_ALTITUDE);
+
+        positions.push(
+          previousPoint.x,
+          previousPoint.y,
+          previousPoint.z,
+          currentPoint.x,
+          currentPoint.y,
+          currentPoint.z
+        );
+      }
+    });
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+
+    const material = new THREE.LineBasicMaterial({
+      color: "#dbeafe",
+      transparent: true,
+      opacity: 0.42,
+      depthTest: true,
+      depthWrite: false
+    });
+
+    const boundaryLines = new THREE.LineSegments(geometry, material);
+    boundaryLines.name = "Frontieres des pays";
+    boundaryLines.frustumCulled = false;
+    boundaryLines.renderOrder = 4;
+
+    scene.add(boundaryLines);
+    boundaryLinesRef.current = boundaryLines;
+
+    return () => {
+      scene.remove(boundaryLines);
+      disposeObject(boundaryLines);
+      boundaryLinesRef.current = null;
+    };
+  }, [countryBoundaryRings, isReady]);
 
   useEffect(() => {
     if (!isReady || !globeRef.current) {
@@ -1033,13 +1252,6 @@ export default function GlobeViewer({
           atmosphereColor="#38bdf8"
           atmosphereAltitude={0.08}
           lineHoverPrecision={0}
-          pathsData={countryBoundaryPaths}
-          pathPoints="points"
-          pathPointAlt={0.003}
-          pathResolution={5}
-          pathColor={() => "rgba(226, 232, 240, 0.4)"}
-          pathStroke={null}
-          pathTransitionDuration={0}
           polygonsData={activeCountryPolygons}
           polygonCapColor={getPolygonColor}
           polygonCapCurvatureResolution={1}
